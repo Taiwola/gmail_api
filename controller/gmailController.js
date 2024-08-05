@@ -2,14 +2,22 @@ const { google } = require('googleapis');
 const fs = require('fs/promises');
 const path = require('path');
 
+/**
+ * Gmail client clas
+ */
 class GmailClient {
     constructor() {
+        // Scopes define the level of access the app will have
         this.SCOPES = ['https://www.googleapis.com/auth/gmail.readonly'];
         this.CREDENTIALS_PATH = path.join(__dirname, '../', 'credentials.json');
         this.TOKEN_PATH = path.join(__dirname, 'token.json');
         this.auth = null;
     }
 
+    /**
+    * Load client credentials from a file
+    * @returns {Object} The parsed credentials JSON
+    */
     async loadCredentials() {
         try {
             const content = await fs.readFile(this.CREDENTIALS_PATH);
@@ -20,6 +28,11 @@ class GmailClient {
         }
     }
 
+    /**
+   * Authorize the client with the loaded credentials
+   * @param {Object} credentials - The client credentials
+   * @returns {String|undefined} The authorization URL if needed, otherwise undefined
+   */
     async authorize(credentials) {
         const { client_secret, client_id, redirect_uris } = credentials.installed || credentials.web;
         const oAuth2Client = new google.auth.OAuth2(client_id, client_secret, redirect_uris[0]);
@@ -34,6 +47,11 @@ class GmailClient {
         this.auth = oAuth2Client;
     }
 
+    /**
+    * Generate an authorization URL for the user to grant access
+    * @param {google.auth.OAuth2} oAuth2Client - The OAuth2 client
+    * @returns {String} The authorization URL
+    */
     async getAuthUrl(oAuth2Client) {
         const authUrl = oAuth2Client.generateAuthUrl({
             access_type: 'offline',
@@ -44,6 +62,11 @@ class GmailClient {
         return authUrl;
     }
 
+    /**
+   * Exchange the authorization code for access tokens and save them
+   * @param {google.auth.OAuth2} oAuth2Client - The OAuth2 client
+   * @param {String} code - The authorization code
+   */
     async getAccessToken(oAuth2Client, code) {
         try {
             const { tokens } = await oAuth2Client.getToken(code);
@@ -56,6 +79,10 @@ class GmailClient {
         }
     }
 
+    /**
+     * Save the OAuth2 client credentials to a file
+     * @param {google.auth.OAuth2} oAuth2Client - The OAuth2 client
+     */
     async saveCredentials(oAuth2Client) {
         const payload = JSON.stringify({
             type: 'authorized_user',
@@ -67,6 +94,11 @@ class GmailClient {
         console.log('Token stored to', this.TOKEN_PATH);
     }
 
+    /**
+    * List messages from the user's Gmail account, filtered by the given criteria
+    * @param {Object} filter - The filter criteria
+    * @returns {Array} The list of messages
+    */
     async listMessages(filter = {}) {
         console.log("Fetching messages...");
         const gmail = google.gmail({ version: 'v1', auth: this.auth });
@@ -97,6 +129,11 @@ class GmailClient {
         }
     }
 
+    /**
+     * Retrieve a specific message by its ID
+     * @param {String} messageId - The ID of the message to retrieve
+     * @returns {Object} The message details
+     */
     async getMessages(messageId) {
         const gmail = google.gmail({ version: 'v1', auth: this.auth });
         try {
@@ -121,6 +158,11 @@ class GmailClient {
         }
     }
 
+    /**
+    * Retrieve the full content of a specific message by its ID
+    * @param {String} messageId - The ID of the message to retrieve
+    * @returns {Object} The message details with full content
+    */
     async getMessage(messageId) {
         const gmail = google.gmail({ version: 'v1', auth: this.auth });
         try {
@@ -140,10 +182,12 @@ class GmailClient {
 
             // Decode Base64 to UTF-8
             const decodedContent = rawData ? Buffer.from(rawData, 'base64').toString('utf-8') : "";
+            const fromHeader = headers.find((header) => header.name === 'From');
 
             return {
                 id: message.id,
                 subject: message.payload.headers.find((header) => header.name === 'Subject').value,
+                from: fromHeader,
                 body: decodedContent
             };
         } catch (err) {
