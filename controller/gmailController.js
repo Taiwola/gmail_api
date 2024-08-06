@@ -195,6 +195,23 @@ class GmailClient {
             throw err;
         }
     }
+
+    async watch() {
+        const gmail = google.gmail({ version: 'v1', auth: this.auth });
+        try {
+            const res = await gmail.users.watch({
+                userId: 'me',
+                requestBody: {
+                    topicName: 'projects/lms-job-portal-394710/topics/gmail_api',
+                    labelIds: ['INBOX'],
+                },
+            });
+            console.log('Watch response:', res.data);
+        } catch (err) {
+            console.error('Error setting up watch:', err);
+            throw err;
+        }
+    }
 }
 
 module.exports = GmailClient;

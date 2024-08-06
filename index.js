@@ -1,14 +1,25 @@
 const express = require('express');
 const path = require('path');
 const { google } = require('googleapis');
+const { PubSub } = require('@google-cloud/pubsub');
 const fs = require('fs/promises');
 const GmailClient = require('./controller/gmailController');
 const app = express();
 const port = 3000;
 
 const gmailClient = new GmailClient();
+const serviceAccountKeyPath = path.join(__dirname, 'service_account.json');
+const serviceAccountKey = require(serviceAccountKeyPath);
+
+const pubsubClient = new PubSub({
+    keyFilename: serviceAccountKeyPath,
+});
 
 app.use(express.json());
+
+app.get('/', async (req, res) => {
+    res.status(200).json({ message: "Welcome" })
+})
 
 app.post('/authorize', async (req, res) => {
     try {
@@ -74,6 +85,32 @@ app.get('/messages/:id', async (req, res) => {
     }
 });
 
-app.listen(port, () => {
+app.post('/push_notification', async (req, res) => {
+    const message = Buffer.from(req.body.message.data, 'base64').toString('utf-8');
+    console.log('Push notification received:', message);
+
+    const emailId = message.id;
+    const email = await gmailClient.getMessage(emailId);
+
+    const sender = email.payload.headers.find((header) => header.name === 'From').value;
+
+    console.log('Email received from:', sender);
+
+    res.status(204).json({
+        message: "Notification recieved",
+        status: "success",
+        data: email
+    });
+});
+
+app.listen(port, async () => {
     console.log(`Server running at http://localhost:${port}`);
+
+    try {
+        const credentials = await gmailClient.loadCredentials();
+        await gmailClient.authorize(credentials);
+        await gmailClient.watch();
+    } catch (error) {
+        console.error('Failed to set up watch:', err);
+    }
 });
